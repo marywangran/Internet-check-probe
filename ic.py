@@ -19,15 +19,31 @@ handle = open("/dev/null", 'w')
 out_list = []
 in_list = []
 
+global pos
+global curr
+global tot_reorder
+global reorder
+
+pos = 0
+curr = 0
+tot_reorder = 0
+reorder = 0
+
 def output():
+	global pos
+	global curr
+	global tot_reorder
+	global reorder
 	all = out_list + in_list
 	all.sort(lambda x,y:cmp(x[3],y[3]))
 	for item in all:
 		print item[0], item[1], item[2], item[3]*10
 	sys.stdout.flush()
+    	handle.write("\nReorder:" + str(reorder) + " Reorder cnt:" + str(tot_reorder) + "\n")
         os._exit(0)
 
 def signal_handler(signal, frame):
+    	handle.write("\nExit:" + ctime() + '\n')
 	output()
 
 class ThreadWraper(threading.Thread):
@@ -41,6 +57,10 @@ class ThreadWraper(threading.Thread):
 		apply(self.func,self.args)
 
 def printrecv(pktdata):
+	global pos
+	global curr
+	global tot_reorder
+	global reorder
 	if ICMP in pktdata and pktdata[ICMP]:
 		seq = str(pktdata[ICMP].seq)
 		if seq == tot_per + 2:
@@ -53,10 +73,18 @@ def printrecv(pktdata):
 			if vl == 2:
     				handle.write('.')
 			else:
-			      # 擦除一个字符并用空格替换
     				handle.write('\b \b')
     			handle.flush()
 			in_list.append(('-', 0, seq, time.clock()))
+			
+			curr = int(seq)
+			if curr >= pos:
+				pos = curr
+			else:
+				delta = pos - curr
+				tot_reorder += 1
+				reorder += delta
+				
 
 def checkstop(pktdata):
 	if ICMP in pktdata and pktdata[ICMP]:
@@ -69,9 +97,13 @@ def checkstop(pktdata):
 	
 def send_packet():
 	times = 0
+	global pos
+	global curr
 	while times < tot:
 		times += 1
     		send(IP(dst = target)/ICMP(seq = (0, tot_per))/"test", verbose = 0, loop = 1, count = 1)
+		pos = 0
+		curr = 0
 		#out_list.append(('++++++++', 1, -1, str(time.clock())))
     	send(IP(dst = target)/ICMP(seq = tot_per+2)/"bye", verbose = 0)
 
